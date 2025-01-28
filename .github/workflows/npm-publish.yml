@@ -42,16 +42,32 @@ jobs:
           echo "\n\n> These are the latest versions from the original [orval library](https://github.com/orval-labs/orval/)." >> README.md
       - name: Update and publish packages
         run: |
-            for package in angular axios core fetch hono mock query swr zod; do
+            for package in core angular axios fetch hono mock query swr zod; do
                 echo "Publishing package: $package"
                 cd packages/$package
-                npx change-package-name @latest-version/orval-$package
+
+                # Update package.json if the package is not core
+                if [ "$package" != "core" ]; then
+                    echo "Updating package.json for: $package"
+                    PACKAGE_JSON="package.json"
+                    jq 'del(.dependencies["@orval/core"]) | .dependencies["@latest-version/orval-core"] = "latest"' $PACKAGE_JSON > tmp.json && mv tmp.json $PACKAGE_JSON
+                fi
+
+                CURRENT_VERSION=$(npm view @latest-version/orval-$package version)
+                echo "Current version for @latest-version/orval-$package: $CURRENT_VERSION "
+                jq --arg version "$CURRENT_VERSION" --arg name "@latest-version/orval-$package" '.version = $version | .name = $name' package.json > tmp.json && mv tmp.json package.json
+
+                # Update the version in package.json
+                npm version patch
+
+                # Publish the package
                 npm publish --access public --tag latest
                 cd -  # Go back to the previous directory
             done
         env:
             NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
             YARN_NPM_PUBLISH_REGISTRY: "https://registry.npmjs.org"
+
     #   - name: Update core package and publish
     #     run: |
     #       cd packages/core
