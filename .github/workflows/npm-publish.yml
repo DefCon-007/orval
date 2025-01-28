@@ -5,12 +5,7 @@ on:
     branches:
       - master
       - auto-release
-  workflow_dispatch:
-    inputs:
-      npm_tag:
-        description: 'NPM version tag (latest, beta, alpha, next)'
-        required: false
-        default: 'latest'
+  workflow_dispatch:  # Adds manual trigger capability
 
 jobs:
   publish:
@@ -42,12 +37,23 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-
-      - name: Update core package and publish
+      - name: Update and publish packages
         run: |
-          cd packages/core
-          npx change-package-name @latest-version/orval-core
-          npm publish --access public --tag latest
+            for package in angular axios core fetch hono mock query swr zod; do
+                echo "Publishing package: $package"
+                cd packages/$package
+                npx change-package-name @latest-version/orval-$package
+                npm publish --access public --tag latest
+                cd -  # Go back to the previous directory
+            done
         env:
             NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
             YARN_NPM_PUBLISH_REGISTRY: "https://registry.npmjs.org"
+    #   - name: Update core package and publish
+    #     run: |
+    #       cd packages/core
+    #       npx change-package-name @latest-version/orval-core
+    #       npm publish --access public --tag latest
+    #     env:
+    #         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    #         YARN_NPM_PUBLISH_REGISTRY: "https://registry.npmjs.org"
