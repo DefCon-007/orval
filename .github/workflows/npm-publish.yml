@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Build packages
-        run: yarn build
+    #   - name: Build packages
+    #     run: yarn build
 
     #   - name: Run tests
     #     run: yarn test
@@ -44,30 +44,42 @@ jobs:
         run: |
             for package in core angular axios fetch hono mock query swr zod; do
                 echo "Publishing package: $package"
-                cd packages/$package
+                PACKAGE_JSON="packages/$package/package.json"
 
                 # Update package.json if the package is not core
                 if [ "$package" != "core" ]; then
-                    echo "Updating package.json for: $package"
-                    PACKAGE_JSON="package.json"
+                    echo "Updating @orval/core in package.json for: $package"
+
                     jq 'del(.dependencies["@orval/core"]) | .dependencies["@latest-version/orval-core"] = "latest"' $PACKAGE_JSON > tmp.json && mv tmp.json $PACKAGE_JSON
                 fi
 
-                CURRENT_VERSION=$(npm view @latest-version/orval-$package version)
-                echo "Current version for @latest-version/orval-$package: $CURRENT_VERSION "
-                jq --arg version "$CURRENT_VERSION" --arg name "@latest-version/orval-$package" '.version = $version | .name = $name' package.json > tmp.json && mv tmp.json package.json
+                # Fetch the current version of the package
+                CURRENT_VERSION=$(npm view @latest-version/orval-$package version 2>/dev/null)
 
-                # Update the version in package.json
-                npm version patch
+                # Check if npm view was successful
+                if [ $? -ne 0 ]; then
+                    echo "Failed to fetch version for @latest-version/orval-$package. Skipping version update."
+                else
+                    IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+                    NEW_PATCH=$((patch + 1))
+                    NEW_VERSION="$major.$minor.$NEW_PATCH"
+                    echo "Current version for @latest-version/orval-$package: $CURRENT_VERSION, new version: $NEW_VERSION"
 
-                # Publish the package
-                npm publish --access public --tag latest
-                cd -  # Go back to the previous directory
+                    jq --arg version "$NEW_VERSION" '.version = $version' $PACKAGE_JSON> tmp.json && mv tmp.json $PACKAGE_JSON
+                fi
+
+                jq --arg name "@latest-version/orval-$package" '.name = $name' $PACKAGE_JSON> tmp.json && mv tmp.json $PACKAGE_JSON
+
+                cat $PACKAGE_JSON
+
+                cd packages/$package
+                npm publish --access public --tag latest --//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+                cd -
+
             done
         env:
             NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
             YARN_NPM_PUBLISH_REGISTRY: "https://registry.npmjs.org"
-
     #   - name: Update core package and publish
     #     run: |
     #       cd packages/core
