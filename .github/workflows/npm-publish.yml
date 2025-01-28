@@ -5,7 +5,12 @@ on:
     branches:
       - master
       - auto-release
-  workflow_dispatch:  # Adds manual trigger capability
+  workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: 'NPM version tag (latest, beta, alpha, next)'
+        required: false
+        default: 'latest'
 
 jobs:
   publish:
@@ -38,11 +43,11 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-      - name: Publish packages
+      - name: Update core package and publish
         run: |
-          yarn workspaces foreach \
-            --no-private \
-            --topological-dev \
-            npm publish --access public
+          cd packages/core
+          npx change-package-name @latest-version/orval-core
+          npm publish --access public --tag latest
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+            NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+            YARN_NPM_PUBLISH_REGISTRY: "https://registry.npmjs.org"
